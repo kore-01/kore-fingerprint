@@ -49,6 +49,8 @@ const enTranslations = {
     qsOn: "Pre: ON",
     qsOff: "Pre: OFF",
     confirmDel: "Delete this profile?",
+    dragProfile: "Drag to reorder",
+    profileReorderFailed: "Failed to save profile order",
     inputReq: "Name & Proxy Link required!",
     runningStatus: "RUNNING",
     done: "Done",

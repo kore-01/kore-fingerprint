@@ -383,12 +383,85 @@
             border-radius: 6px;
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
             border: 1px solid var(--border);
             transition: 0.2s;
             position: relative;
             overflow: hidden;
             flex-shrink: 0;
+        }
+
+        .profile-info {
+            flex: 1 1 auto;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+        }
+
+        .profile-drag-shell {
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .profile-drag-shell.dragging {
+            opacity: 0.55;
+        }
+
+        .profile-drag-shell.drop-before::before,
+        .profile-drag-shell.drop-after::after {
+            content: '';
+            position: absolute;
+            left: 6px;
+            right: 6px;
+            height: 2px;
+            background: var(--accent);
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(0, 224, 255, 0.7);
+            z-index: 2;
+        }
+
+        .main-list.grid-view .profile-drag-shell.drop-before::before,
+        .main-list.grid-view .profile-drag-shell.drop-after::after {
+            top: 6px;
+            bottom: 6px;
+            width: 2px;
+            height: auto;
+            left: auto;
+            right: auto;
+        }
+
+        .profile-drag-shell.drop-before::before {
+            top: -5px;
+        }
+
+        .profile-drag-shell.drop-after::after {
+            bottom: -5px;
+        }
+
+        .main-list.grid-view .profile-drag-shell.drop-before::before {
+            left: -5px;
+        }
+
+        .main-list.grid-view .profile-drag-shell.drop-after::after {
+            right: -5px;
+        }
+
+        .profile-drag-handle {
+            cursor: grab;
+            margin-right: 0;
+            width: 10px;
+            height: 20px;
+            flex: 0 0 10px;
+            user-select: none;
+            opacity: 0.65;
+            background-image: radial-gradient(var(--text-secondary) 1.4px, transparent 1.6px);
+            background-size: 5px 5px;
+        }
+
+        .profile-drag-shell.dragging .profile-drag-handle {
+            cursor: grabbing;
         }
 
         .profile-item:hover {
@@ -397,9 +470,14 @@
         }
 
         .profile-info h4 {
-            margin: 0 0 5px 0;
+            margin: 0;
             font-size: 15px;
             color: var(--text-primary);
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-align: left;
         }
 
         .profile-meta {
@@ -408,6 +486,10 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+            width: 100%;
+            margin-top: 6px;
         }
 
         .tag {
@@ -437,6 +519,8 @@
         .actions {
             display: flex;
             gap: 8px;
+            margin-left: 16px;
+            align-self: center;
         }
 
         .main-list.grid-view .profile-item {
@@ -444,6 +528,10 @@
             align-items: flex-start;
             gap: 10px;
             padding: 15px;
+        }
+
+        .main-list.grid-view .profile-drag-shell {
+            min-width: 0;
         }
 
         .main-list.grid-view .profile-item:hover {
@@ -465,6 +553,8 @@
             width: 100%;
             justify-content: space-between;
             margin-top: 5px;
+            margin-left: 0;
+            align-self: stretch;
         }
 
         .main-list.grid-view .actions button {

@@ -124,6 +124,29 @@ export const useProfileStore = defineStore('profile', () => {
         }
     };
 
+    const reorderProfiles = async (orderedIds = []) => {
+        const currentIds = profiles.value.map(profile => profile.id);
+        const nextIds = orderedIds.filter(id => currentIds.includes(id));
+        const missingIds = currentIds.filter(id => !nextIds.includes(id));
+        const finalIds = [...nextIds, ...missingIds];
+        if (finalIds.length !== currentIds.length) return false;
+
+        const byId = new Map(profiles.value.map(profile => [profile.id, profile]));
+        const previousProfiles = profiles.value;
+        profiles.value = finalIds.map(id => byId.get(id)).filter(Boolean);
+
+        try {
+            const result = await profileService.reorderProfiles(finalIds);
+            if (!result) throw new Error('reorder failed');
+            await loadProfiles();
+            return true;
+        } catch (e) {
+            profiles.value = previousProfiles;
+            console.error('Failed to reorder profiles:', e);
+            throw e;
+        }
+    };
+
     return {
         profiles,
         runningIds,
@@ -147,6 +170,7 @@ export const useProfileStore = defineStore('profile', () => {
         isLaunching,
         createProfile,
         updateProfile,
-        deleteProfile
+        deleteProfile,
+        reorderProfiles
     };
 });

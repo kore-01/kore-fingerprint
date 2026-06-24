@@ -1,14 +1,15 @@
 <template>
-    <div class="profile-item no-drag">
+    <div class="profile-item">
         <div class="profile-info">
-            <div style="display:flex; align-items:center;">
+            <div class="profile-header-row">
+                <div class="profile-drag-handle" :title="t('dragProfile')" aria-hidden="true"></div>
                 <input
                     type="checkbox"
                     class="batch-checkbox no-drag"
                     :checked="isSelected"
                     @change="toggleSelected"
                 >
-                <h4>{{ profile.name }}</h4>
+                <h4 class="profile-name">{{ profile.name }}</h4>
                 <span
                     :id="`status-${profile.id}`"
                     class="running-badge"
@@ -132,10 +133,23 @@ const remove = () => {
 </script>
 
 <style scoped>
+.profile-header-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+
+.profile-name {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .batch-checkbox {
     width: 14px;
     height: 14px;
-    margin-right: 8px;
+    margin-right: 0;
     margin-bottom: 0;
 }
 

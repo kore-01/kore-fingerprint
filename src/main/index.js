@@ -1837,6 +1837,69 @@ async function buildProfileFromInput(rawData, profiles, settings, existingProfil
     };
 }
 
+function cleanExportProfile(profile) {
+    return {
+        ...profile,
+        fingerprint: cleanFingerprint(profile.fingerprint)
+    };
+}
+
+function readExportSelectorValues(params, key) {
+    return params.getAll(key)
+        .flatMap(value => String(value || '').split(','))
+        .map(value => value.trim())
+        .filter(Boolean);
+}
+
+function resolveApiExportProfiles(profiles, params, routeSelector = '') {
+    const selectors = [
+        routeSelector ? decodeURIComponent(routeSelector) : '',
+        ...readExportSelectorValues(params, 'id'),
+        ...readExportSelectorValues(params, 'ids'),
+        ...readExportSelectorValues(params, 'profileId'),
+        ...readExportSelectorValues(params, 'profileIds'),
+        ...readExportSelectorValues(params, 'name'),
+        ...readExportSelectorValues(params, 'names'),
+        ...readExportSelectorValues(params, 'profile'),
+        ...readExportSelectorValues(params, 'profiles')
+    ].map(value => String(value || '').trim()).filter(Boolean);
+
+    if (selectors.length === 0) {
+        return { profiles, selectedAll: true };
+    }
+
+    const selected = [];
+    const selectedIds = new Set();
+    const missing = [];
+
+    for (const selector of selectors) {
+        const profile = profiles.find(item => item.id === selector || item.name === selector);
+        if (!profile) {
+            missing.push(selector);
+            continue;
+        }
+        if (!selectedIds.has(profile.id)) {
+            selectedIds.add(profile.id);
+            selected.push(profile);
+        }
+    }
+
+    if (missing.length > 0) {
+        return {
+            error: {
+                status: 404,
+                data: {
+                    success: false,
+                    error: 'Profile not found',
+                    missing
+                }
+            }
+        };
+    }
+
+    return { profiles: selected, selectedAll: false };
+}
+
 // --- Chrome 密码解密辅助函数 ---
 // 解密 Chrome 主密钥 (平台相关)
 async function handleApiRequest(method, pathname, body, params, context = {}) {
@@ -1996,14 +2059,23 @@ async function handleApiRequest(method, pathname, body, params, context = {}) {
 
 
     // GET /api/export/all?password=xxx - Export full backup (v2)
-    if (method === 'GET' && pathname === '/api/export/all') {
+    // GET /api/export/profile/:idOrName?password=xxx - Export one profile backup
+    const exportFullMatch = pathname.match(/^\/api\/export\/(all|profile)(?:\/([^\/]+))?$/);
+    if (method === 'GET' && exportFullMatch) {
+        const exportKind = exportFullMatch[1];
+        const selection = resolveApiExportProfiles(profiles, params, exportFullMatch[2] || '');
+        if (selection.error) return selection.error;
+        if (exportKind === 'profile' && selection.selectedAll) {
+            return { status: 400, data: { success: false, error: 'Profile id or name required' } };
+        }
         const password = params.get('password');
         if (!password) return { status: 400, data: { success: false, error: 'Password required. Use ?password=yourpassword' } };
+        const selectedProfiles = selection.profiles;
 
         const backupData = {
             version: 2,
             createdAt: Date.now(),
-            profiles: profiles.map(p => ({ ...p, fingerprint: cleanFingerprint ? cleanFingerprint(p.fingerprint) : p.fingerprint })),
+            profiles: selectedProfiles.map(cleanExportProfile),
             preProxies: settings.preProxies || [],
             subscriptions: settings.subscriptions || [],
             browserData: {}
@@ -2016,7 +2088,7 @@ async function handleApiRequest(method, pathname, body, params, context = {}) {
             'Top Sites', 'Top Sites-journal', 'Web Data', 'Web Data-journal'
         ];
         const chromePath = getChromiumPath();
-        for (const profile of profiles) {
+        for (const profile of selectedProfiles) {
             const profileDataDir = path.join(DATA_PATH, profile.id, 'browser_data');
             const defaultDir = path.join(profileDataDir, 'Default');
             if (!fs.existsSync(defaultDir)) continue;
@@ -2057,26 +2129,34 @@ async function handleApiRequest(method, pathname, body, params, context = {}) {
         return {
             success: true,
             data: encrypted.toString('base64'),
-            filename: `GeekEZ_FullBackup_${Date.now()}.geekez`,
-            profileCount: profiles.length
+            filename: selection.selectedAll
+                ? `GeekEZ_FullBackup_${Date.now()}.geekez`
+                : `GeekEZ_FullBackup_Selected_${Date.now()}.geekez`,
+            profileCount: selectedProfiles.length
         };
     }
 
     // GET /api/export/fingerprint - Export YAML fingerprints
-    if (method === 'GET' && pathname === '/api/export/fingerprint') {
-        const exportData = profiles.map(p => ({
+    const exportFingerprintMatch = pathname.match(/^\/api\/export\/fingerprint(?:\/([^\/]+))?$/);
+    if (method === 'GET' && exportFingerprintMatch) {
+        const selection = resolveApiExportProfiles(profiles, params, exportFingerprintMatch[1] || '');
+        if (selection.error) return selection.error;
+        const selectedProfiles = selection.profiles;
+        const exportData = selectedProfiles.map(p => ({
             id: p.id,
             name: p.name,
             proxyStr: p.proxyStr,
             tags: p.tags,
-            fingerprint: cleanFingerprint ? cleanFingerprint(p.fingerprint) : p.fingerprint
+            fingerprint: cleanFingerprint(p.fingerprint)
         }));
         const yamlStr = yaml.dump(exportData, { lineWidth: -1, noRefs: true });
         return {
             success: true,
             data: yamlStr,
-            filename: `GeekEZ_Profiles_${Date.now()}.yaml`,
-            profileCount: profiles.length
+            filename: selection.selectedAll
+                ? `GeekEZ_Profiles_${Date.now()}.yaml`
+                : `GeekEZ_Profiles_Selected_${Date.now()}.yaml`,
+            profileCount: selectedProfiles.length
         };
     }
 
@@ -3963,6 +4043,20 @@ ipcMain.handle('save-profile', async (event, data) => {
     await fs.writeJson(PROFILES_FILE, profiles);
     notifyUIRefresh();
     return newProfile;
+});
+ipcMain.handle('reorder-profiles', async (event, orderedIds) => {
+    if (!Array.isArray(orderedIds)) return false;
+    const profiles = fs.existsSync(PROFILES_FILE) ? await fs.readJson(PROFILES_FILE) : [];
+    const currentIds = profiles.map(profile => profile.id);
+    const nextIds = orderedIds.map(id => String(id || '')).filter(Boolean);
+    if (nextIds.length !== currentIds.length) return false;
+    if (new Set(nextIds).size !== currentIds.length) return false;
+    if (!currentIds.every(id => nextIds.includes(id))) return false;
+
+    const byId = new Map(profiles.map(profile => [profile.id, profile]));
+    await fs.writeJson(PROFILES_FILE, nextIds.map(id => byId.get(id)));
+    notifyUIRefresh();
+    return true;
 });
 ipcMain.handle('delete-profile', async (event, id) => {
     // 关闭正在运行的进程

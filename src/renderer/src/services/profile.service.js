@@ -103,6 +103,10 @@ export const profileService = {
         return await ipcService.invoke('update-profile', profile);
     },
 
+    async reorderProfiles(ids = []) {
+        return await ipcService.invoke('reorder-profiles', ids);
+    },
+
     /**
      * 监听环境运行状态变化
      */

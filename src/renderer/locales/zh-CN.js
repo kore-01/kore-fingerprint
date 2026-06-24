@@ -49,6 +49,8 @@ window.zhCN = {
     qsOn: "前置: 开启",
     qsOff: "前置: 关闭",
     confirmDel: "确定要删除该环境吗？",
+    dragProfile: "拖动排序",
+    profileReorderFailed: "保存环境排序失败",
     inputReq: "请填写环境名称和代理链接！",
     runningStatus: "运行中",
     done: "完成",
