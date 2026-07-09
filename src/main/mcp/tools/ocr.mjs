@@ -1,5 +1,5 @@
-// 智核 OCR 验证码识别 (Day 3)
-// 优先本地 OCR（智核 ocr.py），失败回退 Hermes Vision
+// 智核 OCR 验证码识别 (Day 4 改进版)
+// 本地 tesseract → Hermes Vision fallback
 
 import { z } from 'zod';
 import { Logger } from '../../utils/logger.mjs';
@@ -16,40 +16,37 @@ const logger = new Logger('mcp:ocr');
 const HERMES_VISION_API = 'https://api.minimaxi.com/v1/text/chatcompletion_v2';
 const HERMES_API_KEY = process.env.HERMES_API_KEY || 'sk-cp-Z46W0w8owBWCemXIR8idX5L9FOi_JslkqExT4TuRRJkrS59ERAeMCm_xUzcBXxxQooj6F7WKrwJSy_5sq12sAvP-W-00CKzoPuLUfCICkMVi_OylS9MZtAs';
 
-const OCR_SCRIPT = process.env.KORE_OCR_SCRIPT || '/root/.openclaw/workspace/ocr.py';
-
 export function registerOCRTools(server) {
 
   server.tool(
     'browser_solve_captcha',
-    'Solve a captcha image. Tries local OCR first, falls back to Hermes Vision API for complex captchas.',
+    'Solve a captcha image. Tries local tesseract OCR first, falls back to Hermes Vision API for complex captchas.',
     {
       imageBase64: z.string().describe('Base64-encoded image of the captcha'),
-      mode: z.enum(['auto', 'ocr', 'vision']).optional().default('auto'),
-      profileId: z.string().optional().default('default')
+      mode: z.enum(['auto', 'ocr', 'vision']).optional().default('auto')
     },
-    async ({ imageBase64, mode, profileId }) => {
+    async ({ imageBase64, mode }) => {
       const startTime = Date.now();
-      try {
-        // 1. 保存图片到临时文件
-        const tmpFile = join(tmpdir(), `captcha-${randomUUID()}.png`);
-        const buf = Buffer.from(imageBase64, 'base64');
-        writeFileSync(tmpFile, buf);
-        logger.info(`Captcha saved: ${tmpFile} (${buf.length} bytes)`);
+      const tmpFile = join(tmpdir(), `captcha-${randomUUID()}.png`);
 
-        // 2. 优先本地 OCR
+      try {
+        // 1. 保存图片
+        writeFileSync(tmpFile, Buffer.from(imageBase64, 'base64'));
+        logger.info(`Captcha saved: ${tmpFile} (${imageBase64.length} b64 chars)`);
+
+        // 2. 优先 tesseract 本地 OCR
         if (mode === 'auto' || mode === 'ocr') {
           try {
-            const { stdout } = await execAsync(`python3 ${OCR_SCRIPT} ${tmpFile} 2>&1`);
+            const { stdout } = await execAsync(`tesseract ${tmpFile} stdout 2>/dev/null`);
             const text = stdout.trim();
-            // 简单启发式：长度 4-8、纯字母数字
+            // 启发式：4-8 字符，纯字母数字
             if (/^[a-zA-Z0-9]{4,8}$/.test(text)) {
               logger.info(`OCR success: ${text} (${Date.now() - startTime}ms)`);
               return {
                 content: [{
                   type: 'text',
                   text: JSON.stringify({
-                    success: true, method: 'ocr', text, confidence: 'medium', latency_ms: Date.now() - startTime
+                    success: true, method: 'tesseract', text, confidence: 'medium', latency_ms: Date.now() - startTime
                   }, null, 2)
                 }]
               };
@@ -60,7 +57,7 @@ export function registerOCRTools(server) {
           }
         }
 
-        // 3. 回退 Hermes Vision
+        // 3. Hermes Vision fallback
         if (mode === 'auto' || mode === 'vision') {
           try {
             const result = await callHermesVision(tmpFile);
@@ -82,6 +79,8 @@ export function registerOCRTools(server) {
         return { content: [{ type: 'text', text: 'Error: No method available' }], isError: true };
       } catch (error) {
         return { content: [{ type: 'text', text: 'Error: ' + error.message }], isError: true };
+      } finally {
+        try { require('fs').unlinkSync(tmpFile); } catch (e) {}
       }
     }
   );
@@ -97,7 +96,7 @@ async function callHermesVision(imagePath) {
       role: 'user',
       content: [
         { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } },
-        { type: 'text', text: 'This is a CAPTCHA image. Read the characters/digits in the image. Respond with ONLY the captcha text, no other words.' }
+        { type: 'text', text: 'Read the characters/digits in this CAPTCHA image. Respond with ONLY the captcha text, no other words.' }
       ]
     }],
     max_tokens: 50,
@@ -113,9 +112,7 @@ async function callHermesVision(imagePath) {
     body: JSON.stringify(body)
   });
 
-  if (!response.ok) {
-    throw new Error(`Hermes API ${response.status}: ${await response.text()}`);
-  }
+  if (!response.ok) throw new Error(`Hermes API ${response.status}: ${await response.text()}`);
 
   const data = await response.json();
   return data.choices?.[0]?.message?.content?.trim() || '';

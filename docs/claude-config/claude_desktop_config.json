@@ -6,9 +6,11 @@
         "/opt/kore-fingerprint/src/main/mcp/server.mjs"
       ],
       "env": {
-        "KORE_MCP_MODE": "stdio",
-        "KORE_MCP_STDIO": "enabled"
+        "KORE_MCP_MODE": "stdio"
       }
+    },
+    "kore-fingerprint-remote": {
+      "url": "http://43.155.130.168:39391/sse"
     }
   }
 }
