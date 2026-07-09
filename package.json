@@ -23,13 +23,23 @@
       "output": "dist"
     },
     "files": [
-      "**/*",
+      "out/**/*",
+      "src/**/*",
+      "package.json",
+      "docs/**/*",
+      "resources/bin/**/*",
+      "!**/*.map",
       "!**/*.ts",
-      "!*.map",
-      "!package-lock.json",
-      "!dist",
-      "!_Trash_Bin",
-      "!release"
+      "!node_modules/**",
+      "!dist/**",
+      "!_Trash_Bin/**",
+      "!release/**",
+      "!website/**",
+      "!scripts/**",
+      "!.git/**",
+      "!test/**",
+      "!tests/**",
+      "!*.log"
     ],
     "extraResources": [
       {
