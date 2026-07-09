@@ -2,7 +2,8 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Logger } from '../utils/logger.mjs';
-import { registerBrowserTools } from './tools/browser.mjs';
+import { registerBrowserTools } from "./tools/browser.mjs";
+import { registerOCRTools } from "./tools/ocr.mjs";
 import { startStdioTransport } from './transport/stdio.mjs';
 import { startSSETransport } from './transport/sse.mjs';
 
@@ -18,6 +19,7 @@ export function createMCPServer() {
   });
 
   registerBrowserTools(server);
+  registerOCRTools(server);
   logger.info('MCP Server instance created');
   return server;
 }

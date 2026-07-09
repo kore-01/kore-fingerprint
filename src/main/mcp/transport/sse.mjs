@@ -57,7 +57,7 @@ export async function startSSETransport(server, options = {}) {
       transport: 'SSE',
       endpoint: '/sse',
       health: '/health',
-      tools: ['browser_navigate', 'browser_screenshot', 'browser_click', 'browser_get_fingerprint']
+      tools: ['browser_navigate','browser_screenshot','browser_click','browser_type','browser_extract','browser_get_fingerprint','browser_solve_captcha']
     });
   });
 

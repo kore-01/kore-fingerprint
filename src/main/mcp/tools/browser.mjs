@@ -1,113 +1,64 @@
-// kore-fingerprint MCP Browser Tools (Day 2: 4 个核心 tools)
+// kore-fingerprint MCP Browser Tools (Day 3: 真实 Puppeteer 集成)
+// 6 tools: navigate / screenshot / click / type / extract / get_fingerprint
 
 import { z } from 'zod';
 import { Logger } from '../../utils/logger.mjs';
+import { browserPool } from '../core/browser-pool.mjs';
 
 const logger = new Logger('mcp:browser');
 
-class BrowserPool {
-  constructor() {
-    this.instances = new Map();
-  }
-
-  async ensureReady(profileId = 'default') {
-    if (!this.instances.has(profileId)) {
-      logger.info('Creating new browser instance for profile: ' + profileId);
-      this.instances.set(profileId, {
-        profileId,
-        url: 'about:blank',
-        title: '',
-        fingerprint: this.generateFingerprint(),
-        createdAt: Date.now()
-      });
-    }
-    return this.instances.get(profileId);
-  }
-
-  generateFingerprint() {
-    return {
-      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
-      viewport: { width: 1920, height: 1080 },
-      timezone: 'Asia/Shanghai',
-      locale: 'zh-CN',
-      hardwareConcurrency: 8,
-      deviceMemory: 8,
-      webglVendor: 'Intel Inc.',
-      webglRenderer: 'Mesa Intel(R) UHD Graphics 620',
-      platform: 'Linux x86_64',
-      screenResolution: '1920x1080',
-      colorDepth: 24,
-      pixelRatio: 1
-    };
-  }
-
-  list() {
-    return Array.from(this.instances.keys());
-  }
-}
-
-const pool = new BrowserPool();
-
 export function registerBrowserTools(server) {
 
+  // Tool 1: browser_navigate
   server.tool(
     'browser_navigate',
     'Navigate the browser to a URL. Returns the page title and final URL after navigation.',
     {
       url: z.string().url().describe('The URL to navigate to (must include http:// or https://)'),
-      profileId: z.string().optional().default('default').describe('Profile ID to use (defaults to default)'),
-      waitUntil: z.enum(['load', 'domcontentloaded', 'networkidle0', 'networkidle2']).optional().default('load').describe('When to consider navigation complete')
+      profileId: z.string().optional().default('default'),
+      waitUntil: z.enum(['load', 'domcontentloaded', 'networkidle0', 'networkidle2']).optional().default('load')
     },
     async ({ url, profileId, waitUntil }) => {
       try {
-        logger.info('Navigate ' + profileId + ' -> ' + url);
-        const instance = await pool.ensureReady(profileId);
-        instance.url = url;
-        instance.title = 'Mock title for ' + url;
+        logger.info(`navigate ${profileId} -> ${url}`);
+        const inst = await browserPool.ensureReady(profileId);
+        await inst.page.goto(url, { waitUntil, timeout: 30000 });
+        inst.url = inst.page.url();
+        inst.title = await inst.page.title();
         return {
           content: [{
             type: 'text',
             text: JSON.stringify({
-              success: true,
-              profileId,
-              url: instance.url,
-              title: instance.title,
-              waitUntil,
-              note: 'Real Puppeteer integration coming in Day 3'
+              success: true, profileId, url: inst.url, title: inst.title, waitUntil
             }, null, 2)
           }]
         };
       } catch (error) {
-        logger.error('Navigate failed: ' + error.message);
+        logger.error(`Navigate failed: ${error.message}`);
         return { content: [{ type: 'text', text: 'Error: ' + error.message }], isError: true };
       }
     }
   );
 
+  // Tool 2: browser_screenshot
   server.tool(
     'browser_screenshot',
-    'Take a screenshot of the current page. Returns image as base64-encoded PNG.',
+    'Take a screenshot of the current page. Returns the image as base64-encoded PNG.',
     {
       profileId: z.string().optional().default('default'),
-      fullPage: z.boolean().optional().default(false).describe('Capture full scrollable page'),
+      fullPage: z.boolean().optional().default(false),
       format: z.enum(['png', 'jpeg']).optional().default('png')
     },
     async ({ profileId, fullPage, format }) => {
       try {
-        logger.info('Screenshot ' + profileId + ' (fullPage=' + fullPage + ', format=' + format + ')');
-        const instance = await pool.ensureReady(profileId);
+        const inst = await browserPool.ensureReady(profileId);
+        const buffer = await inst.page.screenshot({ fullPage, type: format });
+        const b64 = buffer.toString('base64');
         return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              profileId,
-              url: instance.url,
-              mock: true,
-              message: 'Screenshot will be implemented in Day 3 with real Puppeteer integration',
-              estimatedSize: '~50KB'
-            }, null, 2)
-          }]
+          content: [
+            { type: 'text', text: JSON.stringify({ success: true, profileId, url: inst.url, size: buffer.length, format, encoding: 'base64' }, null, 2) },
+            { type: 'image', data: b64, mimeType: format === 'png' ? 'image/png' : 'image/jpeg' }
+          ]
         };
       } catch (error) {
         return { content: [{ type: 'text', text: 'Error: ' + error.message }], isError: true };
@@ -115,28 +66,24 @@ export function registerBrowserTools(server) {
     }
   );
 
+  // Tool 3: browser_click
   server.tool(
     'browser_click',
     'Click an element on the page. Supports CSS selector.',
     {
       selector: z.string().describe('CSS selector (e.g., #submit-btn, .login-button)'),
       profileId: z.string().optional().default('default'),
-      timeout: z.number().optional().default(5000).describe('Timeout in milliseconds')
+      timeout: z.number().optional().default(10000)
     },
     async ({ selector, profileId, timeout }) => {
       try {
-        logger.info('Click ' + profileId + ' -> ' + selector);
-        const instance = await pool.ensureReady(profileId);
+        const inst = await browserPool.ensureReady(profileId);
+        await inst.page.waitForSelector(selector, { timeout });
+        await inst.page.click(selector);
         return {
           content: [{
             type: 'text',
-            text: JSON.stringify({
-              success: true,
-              profileId,
-              selector,
-              timeout,
-              message: 'Would click: ' + selector + ' (real Puppeteer integration in Day 3)'
-            }, null, 2)
+            text: JSON.stringify({ success: true, profileId, selector, clicked: true }, null, 2)
           }]
         };
       } catch (error) {
@@ -145,26 +92,99 @@ export function registerBrowserTools(server) {
     }
   );
 
+  // Tool 4: browser_type
+  server.tool(
+    'browser_type',
+    'Type text into an input field. Simulates real keyboard input.',
+    {
+      selector: z.string().describe('CSS selector of the input field'),
+      text: z.string().describe('Text to type'),
+      profileId: z.string().optional().default('default'),
+      delay: z.number().optional().default(50).describe('Delay between keystrokes in ms (0=instant, 50=human-like)')
+    },
+    async ({ selector, text, profileId, delay }) => {
+      try {
+        const inst = await browserPool.ensureReady(profileId);
+        await inst.page.waitForSelector(selector, { timeout: 10000 });
+        await inst.page.click(selector);
+        if (delay > 0) {
+          await inst.page.type(selector, text, { delay });
+        } else {
+          await inst.page.evaluate((sel, t) => {
+            const el = document.querySelector(sel);
+            if (el) {
+              el.value = t;
+              el.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }, selector, text);
+        }
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ success: true, profileId, selector, textLength: text.length, mode: delay > 0 ? 'simulated' : 'instant' }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: 'text', text: 'Error: ' + error.message }], isError: true };
+      }
+    }
+  );
+
+  // Tool 5: browser_extract
+  server.tool(
+    'browser_extract',
+    'Extract text or HTML from the page or a specific element.',
+    {
+      profileId: z.string().optional().default('default'),
+      selector: z.string().optional().describe('CSS selector to extract from (omit for full page)'),
+      format: z.enum(['text', 'html', 'innerText']).optional().default('text')
+    },
+    async ({ profileId, selector, format }) => {
+      try {
+        const inst = await browserPool.ensureReady(profileId);
+        const result = await inst.page.evaluate((sel, fmt) => {
+          if (!sel) {
+            if (fmt === 'html') return document.documentElement.outerHTML;
+            return document.body.innerText;
+          }
+          const el = document.querySelector(sel);
+          if (!el) return null;
+          if (fmt === 'html') return el.outerHTML;
+          if (fmt === 'innerText') return el.innerText;
+          return el.textContent;
+        }, selector, format);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ success: true, profileId, selector, format, length: result ? result.length : 0, content: result }, null, 2)
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: 'text', text: 'Error: ' + error.message }], isError: true };
+      }
+    }
+  );
+
+  // Tool 6: browser_get_fingerprint
   server.tool(
     'browser_get_fingerprint',
-    'Get the current browser fingerprint configuration (UA, viewport, timezone, etc). Useful for verifying fingerprint isolation.',
+    'Get the current browser fingerprint configuration from real CDP. Verifies fingerprint isolation.',
     {
       profileId: z.string().optional().default('default')
     },
     async ({ profileId }) => {
       try {
-        logger.info('Get fingerprint ' + profileId);
-        const instance = await pool.ensureReady(profileId);
+        const inst = await browserPool.ensureReady(profileId);
         return {
           content: [{
             type: 'text',
             text: JSON.stringify({
-              success: true,
-              profileId,
-              fingerprint: instance.fingerprint,
-              currentUrl: instance.url,
-              createdAt: new Date(instance.createdAt).toISOString(),
-              activeProfiles: pool.list()
+              success: true, profileId,
+              fingerprint: inst.fingerprint,
+              currentUrl: inst.page.url(),
+              currentTitle: await inst.page.title(),
+              createdAt: new Date(inst.createdAt).toISOString(),
+              activeProfiles: browserPool.list()
             }, null, 2)
           }]
         };
@@ -174,5 +194,5 @@ export function registerBrowserTools(server) {
     }
   );
 
-  logger.info('Registered 4 browser tools: navigate, screenshot, click, get_fingerprint');
+  logger.info('Registered 6 browser tools: navigate, screenshot, click, type, extract, get_fingerprint');
 }
