@@ -10,7 +10,9 @@ Thumbs.db
 resources/bin/
 resources/puppeteer/
 website/
-tools/
 out/
 *.log
 *.exe
+
+# Allow our MCP tools (was previously excluded by 'tools/' rule)
+/!src/main/mcp/tools/
