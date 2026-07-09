@@ -1,20 +1,23 @@
 {
-  "name": "geekez-browser",
-  "version": "1.6.1",
-  "description": "Stealthy Anti-Detect Browser for E-Commerce",
+  "name": "kore-fingerprint",
+  "version": "0.1.0",
+  "description": "A MCP-controllable anti-detect browser for AI multi-account automation (智核二次开发版 from GeekezBrowser v1.6.1)",
   "main": "out/main/index.js",
-  "author": "EchoHS",
+  "author": "kore-01 <kore-01@users.noreply.github.com>",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "postinstall": "node setup.js",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
-    "build:linux": "npm run build && electron-builder --linux"
+    "build:linux": "npm run build && electron-builder --linux",
+    "mcp:dev": "electron-vite dev --mode mcp",
+    "mcp:start": "node dist/mcp/server.js",
+    "mcp:test": "node scripts/mcp-test.js"
   },
   "build": {
-    "appId": "com.geekez.browser",
-    "productName": "GeekEZ Browser",
+    "appId": "com.kore.fingerprint",
+    "productName": "KoreFingerprint",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "dist"
@@ -105,8 +108,11 @@
     }
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
     "@puppeteer/browsers": "^2.13.0",
     "adm-zip": "^0.5.17",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
     "fs-extra": "^11.3.4",
     "get-port": "^7.2.0",
     "js-base64": "^3.7.8",
@@ -120,7 +126,8 @@
     "tcp-ping": "^0.1.1",
     "tree-kill": "^1.2.2",
     "uuid": "^13.0.0",
-    "vue": "^3.5.31"
+    "vue": "^3.5.31",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.5",
