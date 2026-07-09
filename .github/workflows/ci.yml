@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # 锁版本避免兼容问题（22.04 兼容 libasound2）
     
     steps:
       - uses: actions/checkout@v4
@@ -33,23 +33,21 @@ jobs:
         run: npx puppeteer browsers install chrome
       
       - name: Lint
-        run: |
-          echo "Lint check skipped (ESLint not configured)"
+        run: echo "Lint check skipped"
       
       - name: Start MCP Server (SSE mode)
         run: |
           KORE_MCP_MODE=sse KORE_MCP_PORT=39391 node src/main/mcp/server.mjs &
-          SERVER_PID=$!
+          echo "Server PID: $!"
           sleep 5
-          echo "Server PID: $SERVER_PID"
       
       - name: Test MCP Health Endpoint
         run: |
           curl -f http://localhost:39391/health || (echo "Health check failed" && exit 1)
       
-      - name: Test MCP Server Info
+      - name: Test MCP Server Info (7 tools)
         run: |
-          curl -f http://localhost:39391/ | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['name']=='kore-fingerprint MCP Server'; assert len(d['tools'])==7; print('✅ 7 tools verified')"
+          curl -f http://localhost:39391/ | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['name']=='kore-fingerprint MCP Server'; assert len(d['tools'])==7; print('✅ 7 tools verified:', d['tools'])"
       
       - name: Cleanup
         if: always()

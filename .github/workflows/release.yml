@@ -8,11 +8,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
@@ -26,9 +25,9 @@ jobs:
           sudo apt-get install -y libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
             libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
             libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 tesseract-ocr \
-            tesseract-ocr-chi-sim
+            libgtk-3-0 libxshmfence1
       
-      - name: Install dependencies
+      - name: Install deps
         run: npm ci
       
       - name: Build for Linux
@@ -55,6 +54,7 @@ jobs:
             dist/*.exe
             dist/*.dmg
             dist/*.zip
+            dist/*.yml
           retention-days: 30
       
       - name: Create GitHub Release
@@ -66,6 +66,7 @@ jobs:
             dist/*.exe
             dist/*.dmg
             dist/*.zip
+            dist/*.yml
           generate_release_notes: true
           draft: false
           prerelease: false
